@@ -157,7 +157,7 @@ export default function QueryPage() {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask a question about your data..."
-              className="flex-1 border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#FF3008] focus:border-transparent"
+              className="flex-1 border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#FF3008] focus:border-transparent text-gray-900"
             />
             <button
               onClick={handleSend}
