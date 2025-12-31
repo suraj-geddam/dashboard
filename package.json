@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "jest",
-    "test:unit": "jest tests/*.test.js --testPathIgnorePatterns=e2e",
+    "test:unit": "jest tests/enrich.test.js tests/database.test.js",
     "test:e2e": "jest tests/e2e.test.js",
     "test:watch": "jest --watch"
   },
@@ -28,7 +28,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/jest": "^29.5.11",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.1",
     "@types/react": "^19",
