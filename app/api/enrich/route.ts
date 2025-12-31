@@ -66,6 +66,8 @@ export async function GET(req: NextRequest) {
             const prompt = buildEnrichmentPrompt(storeNames);
             console.log(`[Enrich] Calling LLM for batch ${Math.floor(i / BATCH_SIZE) + 1}, ${storeNames.length} stores`);
             console.log(`[Enrich] Model: ${model}, Base URL: ${config.llm_base_url}`);
+            console.log(`[Enrich] Prompt length: ${prompt.length} chars`);
+            console.log(`[Enrich] First 200 chars of prompt:`, prompt.substring(0, 200));
 
             const completion = await openai.chat.completions.create({
               model,
@@ -75,11 +77,18 @@ export async function GET(req: NextRequest) {
               timeout: 60000, // 60 second timeout
             });
 
+            console.log(`[Enrich] Full completion object:`, JSON.stringify(completion, null, 2));
+            console.log(`[Enrich] Response content:`, completion.choices[0].message.content);
             console.log(`[Enrich] LLM response received, ${completion.choices[0].message.content?.length || 0} chars`);
+
             let responseText = completion.choices[0].message.content?.trim() || '[]';
+            console.log(`[Enrich] Response text (first 500 chars):`, responseText.substring(0, 500));
 
             const classifications = parseEnrichmentResponse(responseText, storeNames);
             console.log(`[Enrich] Parsed ${classifications.length} classifications`);
+            if (classifications.length > 0) {
+              console.log(`[Enrich] First classification:`, JSON.stringify(classifications[0]));
+            }
 
             // 4. Insert into database
             const insertStmt = db.prepare(`
