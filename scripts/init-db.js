@@ -43,9 +43,28 @@ CREATE TABLE IF NOT EXISTS config (
 );
 `;
 
+const createStoreMetadataTable = `
+CREATE TABLE IF NOT EXISTS store_metadata (
+    store_name TEXT PRIMARY KEY,
+    cuisine_type TEXT,
+    store_category TEXT,
+    price_range TEXT,
+    enriched_at TEXT,
+    enrichment_source TEXT,
+    raw_llm_response TEXT
+);
+`;
+
+const createStoreMetadataIndexes = `
+CREATE INDEX IF NOT EXISTS idx_store_metadata_category ON store_metadata(store_category);
+CREATE INDEX IF NOT EXISTS idx_store_metadata_cuisine ON store_metadata(cuisine_type);
+`;
+
 db.exec(createOrdersTable);
 db.exec(createOrderItemsTable);
 db.exec(createConfigTable);
+db.exec(createStoreMetadataTable);
+db.exec(createStoreMetadataIndexes);
 
 // Insert default config if not exists
 const insertDefault = db.prepare('INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)');
