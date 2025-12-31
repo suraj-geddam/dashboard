@@ -10,7 +10,15 @@ export async function GET(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       const send = (data: any) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        try {
+          if (!controller.desiredSize || controller.desiredSize <= 0) {
+            console.log('[Enrich] Controller closed, skipping send');
+            return;
+          }
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        } catch (err) {
+          console.error('[Enrich] Failed to send SSE message:', err);
+        }
       };
 
       try {
@@ -52,7 +60,7 @@ export async function GET(req: NextRequest) {
         send({ type: 'start', total: totalStores });
 
         // 3. Batch enrichment
-        const BATCH_SIZE = 25;
+        const BATCH_SIZE = 5;  // Reduced batch size for faster responses with 8B model
         let enrichedCount = 0;
 
         for (let i = 0; i < unenrichedStores.length; i += BATCH_SIZE) {
@@ -73,8 +81,8 @@ export async function GET(req: NextRequest) {
               model,
               messages: [{ role: 'user', content: prompt }],
               temperature: 0,
-              max_tokens: 2000,
-              timeout: 60000, // 60 second timeout
+              max_tokens: 800,  // Reduced for faster response with smaller batches
+              timeout: 45000,   // 45 second timeout (shorter for smaller batches)
             });
 
             console.log(`[Enrich] Full completion object:`, JSON.stringify(completion, null, 2));
