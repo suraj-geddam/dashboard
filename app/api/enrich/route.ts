@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
               model,
               messages: [{ role: 'user', content: prompt }],
               temperature: 0,
-              max_tokens: 2500,  // Increased to allow for reasoning + JSON response (Qwen uses chain-of-thought)
+              max_tokens: 3000,  // Increased to allow for reasoning + JSON response (Qwen uses chain-of-thought)
               timeout: 90000,    // 90 second timeout for reasoning models
             });
 
