@@ -50,6 +50,51 @@ export default function UploadPage() {
     }
   };
 
+  const startEnrichment = () => {
+    setEnrichmentStatus('enriching');
+    setEnrichmentMessage('Connecting to enrichment service...');
+
+    const eventSource = new EventSource('/api/enrich');
+
+    eventSource.addEventListener('message', (e) => {
+      const data = JSON.parse(e.data);
+
+      switch (data.type) {
+        case 'start':
+          setEnrichmentProgress({ current: 0, total: data.total, enriched: 0 });
+          setEnrichmentMessage(`Enriching ${data.total} stores...`);
+          break;
+
+        case 'progress':
+          setEnrichmentProgress({
+            current: data.current,
+            total: data.total,
+            enriched: data.enriched || 0
+          });
+          setEnrichmentMessage(data.status || `Processing ${data.current}/${data.total}...`);
+          break;
+
+        case 'error':
+          setEnrichmentStatus('error');
+          setEnrichmentMessage(`Error: ${data.message}`);
+          eventSource.close();
+          break;
+
+        case 'complete':
+          setEnrichmentStatus('complete');
+          setEnrichmentMessage(`Successfully enriched ${data.enriched} stores!`);
+          eventSource.close();
+          break;
+      }
+    });
+
+    eventSource.addEventListener('error', () => {
+      setEnrichmentStatus('error');
+      setEnrichmentMessage('Connection to enrichment service lost');
+      eventSource.close();
+    });
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
@@ -94,7 +139,7 @@ export default function UploadPage() {
             {enrichmentStatus === 'idle' && (
               <div className="mt-4 flex justify-end">
                 <button
-                  onClick={() => setEnrichmentStatus('enriching')}
+                  onClick={startEnrichment}
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
                 >
                   Enrich Metadata
