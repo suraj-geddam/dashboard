@@ -9,6 +9,11 @@ export default function UploadPage() {
   const [message, setMessage] = useState('');
   const [stats, setStats] = useState<{ count: number } | null>(null);
 
+  // Enrichment states
+  const [enrichmentStatus, setEnrichmentStatus] = useState<'idle' | 'enriching' | 'complete' | 'error'>('idle');
+  const [enrichmentProgress, setEnrichmentProgress] = useState({ current: 0, total: 0, enriched: 0 });
+  const [enrichmentMessage, setEnrichmentMessage] = useState('');
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
