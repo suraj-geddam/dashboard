@@ -33,35 +33,56 @@ export default function QueryPage() {
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setLoading(true);
 
-    try {
-      const res = await fetch('/api/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: userMsg }),
-      });
+    // SSE streaming
+    const eventSource = new EventSource(`/api/query?q=${encodeURIComponent(userMsg)}`);
+    let currentSql = '';
+    let currentStatus = '';
 
-      const data = await res.json();
+    eventSource.addEventListener('message', (e) => {
+      const data = JSON.parse(e.data);
 
-      if (data.error) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: 'I encountered an error processing your request.',
-          error: data.error,
-          sql: data.sql
-        }]);
-      } else {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `Here is what I found for "${userMsg}":`,
-          sql: data.sql,
-          data: data.results
-        }]);
+      switch (data.type) {
+        case 'generating':
+          currentStatus = data.status;
+          break;
+
+        case 'sql':
+          currentSql = data.sql;
+          break;
+
+        case 'executing':
+          // Status update
+          break;
+
+        case 'results':
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `Here is what I found for "${userMsg}":`,
+            sql: currentSql,
+            data: data.results
+          }]);
+          setLoading(false);
+          eventSource.close();
+          break;
+
+        case 'error':
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: 'I encountered an error processing your request.',
+            error: data.message,
+            sql: currentSql
+          }]);
+          setLoading(false);
+          eventSource.close();
+          break;
       }
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong.' }]);
-    } finally {
+    });
+
+    eventSource.addEventListener('error', () => {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, connection to server lost.' }]);
       setLoading(false);
-    }
+      eventSource.close();
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
