@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, Code } from 'lucide-react';
+import { Send, User, Bot, Loader2, Code, ChevronDown } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -9,6 +9,7 @@ interface Message {
   sql?: string;
   data?: any[];
   error?: string;
+  reasoning?: string;
 }
 
 export default function QueryPage() {
@@ -17,13 +18,16 @@ export default function QueryPage() {
     { role: 'assistant', content: 'Hello! Ask me anything about your DoorDash orders. For example: "How much did I spend on Thai food last month?"' }
   ]);
   const [loading, setLoading] = useState(false);
+  const [streamingReasoning, setStreamingReasoning] = useState('');
+  const [streamingSQL, setStreamingSQL] = useState('');
+  const [showStreamingReasoning, setShowStreamingReasoning] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, streamingReasoning, streamingSQL]);
 
   const handleSend = async () => {
     if (!query.trim()) return;
@@ -32,57 +36,126 @@ export default function QueryPage() {
     setQuery('');
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setLoading(true);
+    setStreamingReasoning('');
+    setStreamingSQL('');
+    setShowStreamingReasoning(false);
 
-    // SSE streaming
-    const eventSource = new EventSource(`/api/query?q=${encodeURIComponent(userMsg)}`);
-    let currentSql = '';
-    let currentStatus = '';
+    try {
+      // Send conversation history with the query
+      const response = await fetch('/api/query', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: userMsg,
+          history: messages.filter(m => m.role === 'user' || (m.role === 'assistant' && m.sql)).map(m => ({
+            role: m.role,
+            content: m.content,
+            sql: m.sql
+          }))
+        }),
+      });
 
-    eventSource.addEventListener('message', (e) => {
-      const data = JSON.parse(e.data);
-
-      switch (data.type) {
-        case 'generating':
-          currentStatus = data.status;
-          break;
-
-        case 'sql':
-          currentSql = data.sql;
-          break;
-
-        case 'executing':
-          // Status update
-          break;
-
-        case 'results':
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: `Here is what I found for "${userMsg}":`,
-            sql: currentSql,
-            data: data.results
-          }]);
-          setLoading(false);
-          eventSource.close();
-          break;
-
-        case 'error':
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: 'I encountered an error processing your request.',
-            error: data.message,
-            sql: currentSql
-          }]);
-          setLoading(false);
-          eventSource.close();
-          break;
+      if (!response.ok) {
+        throw new Error('Failed to connect to server');
       }
-    });
 
-    eventSource.addEventListener('error', () => {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, connection to server lost.' }]);
+      // Parse SSE stream manually
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+
+        // Process complete lines
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              switch (data.type) {
+                case 'reasoning_start':
+                  setShowStreamingReasoning(true);
+                  break;
+
+                case 'reasoning_token':
+                  setStreamingReasoning(prev => prev + data.token);
+                  break;
+
+                case 'reasoning_complete':
+                  break;
+
+                case 'sql_start':
+                  break;
+
+                case 'sql_token':
+                  setStreamingSQL(prev => prev + data.token);
+                  break;
+
+                case 'sql_complete':
+                  break;
+
+                case 'validating':
+                case 'executing':
+                  break;
+
+                case 'results':
+                  setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: `Here is what I found:`,
+                    sql: data.sql,
+                    data: data.results,
+                    reasoning: data.reasoning
+                  }]);
+                  setStreamingReasoning('');
+                  setStreamingSQL('');
+                  setLoading(false);
+                  break;
+
+                case 'error':
+                  setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: 'I encountered an error processing your request.',
+                    error: data.message,
+                    sql: data.sql,
+                    reasoning: data.reasoning
+                  }]);
+                  setStreamingReasoning('');
+                  setStreamingSQL('');
+                  setLoading(false);
+                  break;
+              }
+            } catch (parseError) {
+              console.error('Failed to parse SSE data:', parseError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Query error:', error);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Sorry, connection to server lost.',
+        error: String(error)
+      }]);
+      setStreamingReasoning('');
+      setStreamingSQL('');
       setLoading(false);
-      eventSource.close();
-    });
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -116,6 +189,18 @@ export default function QueryPage() {
                   <div className="bg-red-100 text-red-700 p-3 rounded-lg text-sm">
                     Error: {msg.error}
                   </div>
+                )}
+
+                {msg.reasoning && (
+                  <details className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                    <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 flex items-center gap-2">
+                      <ChevronDown size={14} className="transition-transform" />
+                      Show reasoning ({msg.reasoning.length} chars)
+                    </summary>
+                    <pre className="px-4 py-3 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200 overflow-x-auto max-h-60">
+                      {msg.reasoning}
+                    </pre>
+                  </details>
                 )}
 
                 {msg.sql && (
@@ -162,8 +247,36 @@ export default function QueryPage() {
               <div className="w-8 h-8 rounded-full bg-[#FF3008] text-white flex items-center justify-center flex-shrink-0">
                 <Bot size={16} />
               </div>
-              <div className="bg-red-50 p-4 rounded-2xl rounded-tl-none">
-                <Loader2 className="w-5 h-5 animate-spin text-[#FF3008]" />
+              <div className="max-w-[80%] space-y-2">
+                {/* Streaming Reasoning */}
+                {streamingReasoning && (
+                  <details open={showStreamingReasoning} className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                    <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 flex items-center gap-2">
+                      <ChevronDown size={14} className="transition-transform" />
+                      Reasoning ({streamingReasoning.length} chars)
+                    </summary>
+                    <pre className="px-4 py-3 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200 overflow-x-auto max-h-60">
+                      {streamingReasoning}<span className="animate-pulse">▊</span>
+                    </pre>
+                  </details>
+                )}
+
+                {/* Streaming SQL */}
+                {streamingSQL && (
+                  <div className="bg-gray-800 text-gray-200 p-3 rounded-lg">
+                    <div className="text-xs text-gray-400 mb-2">Generating SQL...</div>
+                    <code className="text-xs font-mono">
+                      {streamingSQL}<span className="animate-pulse">▊</span>
+                    </code>
+                  </div>
+                )}
+
+                {/* Loading indicator when no tokens yet */}
+                {!streamingReasoning && !streamingSQL && (
+                  <div className="bg-red-50 p-4 rounded-2xl rounded-tl-none">
+                    <Loader2 className="w-5 h-5 animate-spin text-[#FF3008]" />
+                  </div>
+                )}
               </div>
             </div>
           )}
