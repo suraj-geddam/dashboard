@@ -33,6 +33,16 @@ Columns: id (TEXT), created_at (TEXT ISO8601), store_name (TEXT), delivery_time 
 Table: order_items
 Columns: id (INTEGER), order_id (TEXT), item_name (TEXT), category (TEXT), unit_price (REAL), quantity (INTEGER), subtotal (REAL)
 Foreign Key: order_items.order_id -> orders.id
+
+Table: store_metadata
+Columns: store_name (TEXT PRIMARY KEY), cuisine_type (TEXT nullable), store_category (TEXT), price_range (TEXT)
+Description: Contains LLM-enriched metadata about stores. cuisine_type is the restaurant's cuisine (e.g., "Thai", "Italian", "Chinese"). store_category is the business type (e.g., "Restaurant", "Grocery", "Pharmacy"). price_range is "$" to "$$$$".
+Foreign Key: Join with orders.store_name = store_metadata.store_name
+
+IMPORTANT:
+- When users ask about cuisine (e.g., "Thai food", "Italian restaurants"), use store_metadata.cuisine_type
+- The order_items.category field contains dish categories like "Appetizer", "Entree", NOT cuisine types
+- Always JOIN with store_metadata when filtering by cuisine, price range, or store category
 `;
 
     const prompt = `
