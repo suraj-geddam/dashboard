@@ -71,7 +71,7 @@ npm run test:watch   # Run tests in watch mode
 ### LLM Integration
 
 - Uses OpenAI SDK with custom `baseURL` for flexibility (supports LMStudio, Ollama, etc.)
-- Default: `http://localhost:8080/v1` with `llama-3.2-3b-instruct`
+- Default: `http://localhost:8080/v1` with `Qwen3-8B-Q5_K_M.gguf` (8B parameters, Q5_K_M quantization)
 - **Enrichment**: Batch classification with structured JSON output (cuisine, category, price)
 - **Query**: Enhanced schema with store_metadata + 5 few-shot examples showing metadata JOINs
 - LLM responses are cleaned (strips markdown) and validated

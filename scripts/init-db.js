@@ -71,7 +71,7 @@ const insertDefault = db.prepare('INSERT OR IGNORE INTO config (key, value) VALU
 insertDefault.run('llm_provider', 'local');
 insertDefault.run('llm_base_url', 'http://localhost:8080/v1');
 insertDefault.run('llm_api_key', 'sk-no-key-required');
-insertDefault.run('llm_model', 'llama-3.2-3b-instruct');
+insertDefault.run('llm_model', 'Qwen3-8B-Q5_K_M.gguf');
 
 
 console.log('Database initialized successfully.');
