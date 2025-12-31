@@ -146,6 +146,50 @@ export default function UploadPage() {
                 </button>
               </div>
             )}
+
+            {enrichmentStatus === 'enriching' && (
+              <div className="mt-4 p-4 bg-blue-50 text-blue-700 rounded-lg">
+                <div className="flex items-center gap-3 mb-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="font-medium">Enriching Store Metadata</span>
+                </div>
+                <p className="text-sm mb-2">{enrichmentMessage}</p>
+                {enrichmentProgress.total > 0 && (
+                  <>
+                    <div className="w-full bg-blue-200 rounded-full h-2 mb-1 progress-bar">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${(enrichmentProgress.current / enrichmentProgress.total) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-xs">
+                      {enrichmentProgress.current}/{enrichmentProgress.total} stores processed
+                      ({enrichmentProgress.enriched} enriched)
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {enrichmentStatus === 'complete' && (
+              <div className="mt-4 p-4 bg-green-50 text-green-700 rounded-lg flex items-center gap-3">
+                <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">Enrichment Complete!</p>
+                  <p className="text-sm">{enrichmentMessage}</p>
+                </div>
+              </div>
+            )}
+
+            {enrichmentStatus === 'error' && (
+              <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">Enrichment Failed</p>
+                  <p className="text-sm">{enrichmentMessage}</p>
+                </div>
+              </div>
+            )}
           </>
         )}
 
