@@ -27,6 +27,12 @@ export async function GET(req: NextRequest) {
         });
         const model = config.llm_model || 'llama-3.2-3b-instruct';
 
+        console.log(`[Enrich] Starting enrichment with config:`, {
+          baseURL: config.llm_base_url,
+          model: model,
+          apiKey: config.llm_api_key?.substring(0, 10) + '...'
+        });
+
         // 2. Find stores needing enrichment
         const unenrichedStores = db.prepare(`
           SELECT DISTINCT o.store_name
@@ -58,15 +64,22 @@ export async function GET(req: NextRequest) {
           try {
             // Call LLM
             const prompt = buildEnrichmentPrompt(storeNames);
+            console.log(`[Enrich] Calling LLM for batch ${Math.floor(i / BATCH_SIZE) + 1}, ${storeNames.length} stores`);
+            console.log(`[Enrich] Model: ${model}, Base URL: ${config.llm_base_url}`);
+
             const completion = await openai.chat.completions.create({
               model,
               messages: [{ role: 'user', content: prompt }],
               temperature: 0,
+              max_tokens: 2000,
+              timeout: 60000, // 60 second timeout
             });
 
+            console.log(`[Enrich] LLM response received, ${completion.choices[0].message.content?.length || 0} chars`);
             let responseText = completion.choices[0].message.content?.trim() || '[]';
 
             const classifications = parseEnrichmentResponse(responseText, storeNames);
+            console.log(`[Enrich] Parsed ${classifications.length} classifications`);
 
             // 4. Insert into database
             const insertStmt = db.prepare(`
@@ -95,8 +108,20 @@ export async function GET(req: NextRequest) {
             send({ type: 'progress', current: Math.min(i + batch.length, totalStores), total: totalStores, enriched: enrichedCount });
 
           } catch (batchError: any) {
-            console.error('Batch enrichment error:', batchError);
-            send({ type: 'error', message: `Failed to process batch: ${batchError.message}`, batch: storeNames });
+            console.error('[Enrich] Batch enrichment error:', batchError);
+            const errorMsg = batchError.message || String(batchError);
+            console.error('[Enrich] Error details:', {
+              name: batchError.name,
+              message: batchError.message,
+              code: batchError.code,
+              status: batchError.status
+            });
+            send({
+              type: 'error',
+              message: `Batch ${Math.floor(i / BATCH_SIZE) + 1} failed: ${errorMsg}`,
+              detail: batchError.code || batchError.name,
+              batch: storeNames
+            });
             // Continue with next batch instead of failing completely
           }
         }
