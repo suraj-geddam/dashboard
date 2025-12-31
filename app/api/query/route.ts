@@ -45,17 +45,41 @@ IMPORTANT:
 - Always JOIN with store_metadata when filtering by cuisine, price range, or store category
 `;
 
+    const fewShotExamples = `
+Examples:
+
+Q: "How much did I spend on Thai food in 2024?"
+A: SELECT SUM(o.total_amount) as total_spent FROM orders o JOIN store_metadata sm ON o.store_name = sm.store_name WHERE sm.cuisine_type = 'Thai' AND strftime('%Y', o.created_at) = '2024'
+
+Q: "What's my favorite Italian restaurant?"
+A: SELECT o.store_name, COUNT(*) as order_count FROM orders o JOIN store_metadata sm ON o.store_name = sm.store_name WHERE sm.cuisine_type = 'Italian' GROUP BY o.store_name ORDER BY order_count DESC LIMIT 1
+
+Q: "Show me expensive restaurants I've ordered from"
+A: SELECT DISTINCT o.store_name, sm.price_range FROM orders o JOIN store_metadata sm ON o.store_name = sm.store_name WHERE sm.price_range IN ('$$$', '$$$$') AND sm.store_category = 'Restaurant'
+
+Q: "How much did I spend at pharmacies?"
+A: SELECT SUM(o.total_amount) as total_spent FROM orders o JOIN store_metadata sm ON o.store_name = sm.store_name WHERE sm.store_category = 'Pharmacy'
+
+Q: "What appetizers did I order from Thai restaurants?"
+A: SELECT DISTINCT oi.item_name FROM order_items oi JOIN orders o ON oi.order_id = o.id JOIN store_metadata sm ON o.store_name = sm.store_name WHERE sm.cuisine_type = 'Thai' AND oi.category = 'Appetizer'
+`;
+
     const prompt = `
 You are a SQLite expert. Given the following database schema, write a SQL query to answer the user's question.
+
 ${schema}
+
+${fewShotExamples}
 
 User Question: "${query}"
 
 Rules:
 1. Return ONLY the SQL query. No markdown, no explanation.
-2. Use SQLite syntax.
-3. Do not use markdown code blocks.
-4. If the question cannot be answered, return "SELECT 'Cannot answer' as error".
+2. Use SQLite syntax and functions (strftime for dates, etc.)
+3. When the question mentions cuisine types (Thai, Italian, Chinese, etc.), use store_metadata.cuisine_type
+4. When the question mentions dish categories (Appetizer, Entree, etc.), use order_items.category
+5. JOIN with store_metadata when filtering by cuisine, price, or store category
+6. If the question cannot be answered, return "SELECT 'Cannot answer' as error"
 `;
 
     const completion = await openai.chat.completions.create({
