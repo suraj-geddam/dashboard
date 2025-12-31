@@ -73,8 +73,8 @@ export async function POST(req: NextRequest) {
     const deleteOrderItems = db.prepare('DELETE FROM order_items');
 
     const insertTransaction = db.transaction((orders: any[]) => {
-      deleteOrders.run();
-      deleteOrderItems.run();
+      deleteOrderItems.run();  // Delete child records first
+      deleteOrders.run();       // Then delete parent records
 
       for (const order of orders) {
         insertOrder.run({
