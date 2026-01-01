@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, ChevronDown } from 'lucide-react';
+import { Send, User, Bot, Loader2, ChevronDown, Code } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface Message {
@@ -231,9 +231,9 @@ export default function QueryPage() {
                   {msg.role === 'user' ? (
                     <p>{msg.content}</p>
                   ) : (
-                    <ReactMarkdown className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-code:text-gray-900">
-                      {msg.content}
-                    </ReactMarkdown>
+                    <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-code:text-gray-900">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
                   )}
                 </div>
 
@@ -347,9 +347,9 @@ export default function QueryPage() {
                 {/* Streaming Response */}
                 {streamingResponse && (
                   <div className="bg-red-50 p-4 rounded-2xl rounded-tl-none">
-                    <ReactMarkdown className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-code:text-gray-900">
-                      {streamingResponse}
-                    </ReactMarkdown>
+                    <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-code:text-gray-900">
+                      <ReactMarkdown>{streamingResponse}</ReactMarkdown>
+                    </div>
                     <span className="animate-pulse">▊</span>
                   </div>
                 )}

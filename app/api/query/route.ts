@@ -203,9 +203,11 @@ Remember:
           const finishReason = chunk.choices[0]?.finish_reason;
 
           // Handle reasoning tokens (Qwen chain-of-thought)
-          if (delta?.reasoning_content) {
-            fullReasoning += delta.reasoning_content;
-            send({ type: 'reasoning_token', token: delta.reasoning_content });
+          // Note: reasoning_content is not in standard types but supported by some models
+          const deltaAny = delta as any;
+          if (deltaAny?.reasoning_content) {
+            fullReasoning += deltaAny.reasoning_content;
+            send({ type: 'reasoning_token', token: deltaAny.reasoning_content });
           }
 
           // Handle tool calls
