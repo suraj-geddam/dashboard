@@ -1,15 +1,22 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, Code, ChevronDown } from 'lucide-react';
+import { Send, User, Bot, Loader2, ChevronDown } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  reasoning?: string;
+  tool_calls?: Array<{
+    name: string;
+    args: any;
+    results?: any[];
+  }>;
+  error?: string;
+  // Legacy fields for backward compatibility
   sql?: string;
   data?: any[];
-  error?: string;
-  reasoning?: string;
 }
 
 export default function QueryPage() {
@@ -19,15 +26,15 @@ export default function QueryPage() {
   ]);
   const [loading, setLoading] = useState(false);
   const [streamingReasoning, setStreamingReasoning] = useState('');
-  const [streamingSQL, setStreamingSQL] = useState('');
-  const [showStreamingReasoning, setShowStreamingReasoning] = useState(false);
+  const [streamingResponse, setStreamingResponse] = useState('');
+  const [currentToolCalls, setCurrentToolCalls] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, streamingReasoning, streamingSQL]);
+  }, [messages, streamingReasoning, streamingResponse, currentToolCalls]);
 
   const handleSend = async () => {
     if (!query.trim()) return;
@@ -37,8 +44,8 @@ export default function QueryPage() {
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setLoading(true);
     setStreamingReasoning('');
-    setStreamingSQL('');
-    setShowStreamingReasoning(false);
+    setStreamingResponse('');
+    setCurrentToolCalls([]);
 
     try {
       // Send conversation history with the query
@@ -49,10 +56,10 @@ export default function QueryPage() {
         },
         body: JSON.stringify({
           query: userMsg,
-          history: messages.filter(m => m.role === 'user' || (m.role === 'assistant' && m.sql)).map(m => ({
+          history: messages.map(m => ({
             role: m.role,
             content: m.content,
-            sql: m.sql
+            tool_calls: m.tool_calls,
           }))
         }),
       });
@@ -88,41 +95,56 @@ export default function QueryPage() {
               const data = JSON.parse(line.slice(6));
 
               switch (data.type) {
-                case 'reasoning_start':
-                  setShowStreamingReasoning(true);
-                  break;
-
                 case 'reasoning_token':
                   setStreamingReasoning(prev => prev + data.token);
                   break;
 
-                case 'reasoning_complete':
+                case 'tool_call_start':
+                  console.log(`Tool call: ${data.name}`);
                   break;
 
-                case 'sql_start':
+                case 'executing_sql':
+                  // Show SQL being executed
+                  setCurrentToolCalls(prev => [...prev, {
+                    name: 'query_database',
+                    sql: data.sql,
+                    explanation: data.explanation,
+                    status: 'executing'
+                  }]);
                   break;
 
-                case 'sql_token':
-                  setStreamingSQL(prev => prev + data.token);
+                case 'sql_results':
+                  // Update tool call with results
+                  setCurrentToolCalls(prev => prev.map(tc =>
+                    tc.status === 'executing'
+                      ? { ...tc, results: data.results, status: 'complete' }
+                      : tc
+                  ));
                   break;
 
-                case 'sql_complete':
+                case 'sql_error':
+                  // Mark tool call as failed
+                  setCurrentToolCalls(prev => prev.map(tc =>
+                    tc.status === 'executing'
+                      ? { ...tc, error: data.message, status: 'failed' }
+                      : tc
+                  ));
                   break;
 
-                case 'validating':
-                case 'executing':
+                case 'content_token':
+                  setStreamingResponse(prev => prev + data.token);
                   break;
 
-                case 'results':
+                case 'final_response':
                   setMessages(prev => [...prev, {
                     role: 'assistant',
-                    content: `Here is what I found:`,
-                    sql: data.sql,
-                    data: data.results,
-                    reasoning: data.reasoning
+                    content: data.content,
+                    reasoning: data.reasoning,
+                    tool_calls: data.tool_calls
                   }]);
+                  setStreamingResponse('');
                   setStreamingReasoning('');
-                  setStreamingSQL('');
+                  setCurrentToolCalls([]);
                   setLoading(false);
                   break;
 
@@ -130,12 +152,11 @@ export default function QueryPage() {
                   setMessages(prev => [...prev, {
                     role: 'assistant',
                     content: 'I encountered an error processing your request.',
-                    error: data.message,
-                    sql: data.sql,
-                    reasoning: data.reasoning
+                    error: data.message
                   }]);
+                  setStreamingResponse('');
                   setStreamingReasoning('');
-                  setStreamingSQL('');
+                  setCurrentToolCalls([]);
                   setLoading(false);
                   break;
               }
@@ -153,7 +174,8 @@ export default function QueryPage() {
         error: String(error)
       }]);
       setStreamingReasoning('');
-      setStreamingSQL('');
+      setStreamingResponse('');
+      setCurrentToolCalls([]);
       setLoading(false);
     }
   };
@@ -181,8 +203,38 @@ export default function QueryPage() {
                 {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
               <div className={`max-w-[80%] space-y-2`}>
+                {/* Tool calls display (for assistant messages) */}
+                {msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0 && (
+                  <details className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                    <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-2">
+                      <ChevronDown size={14} className="transition-transform" />
+                      🔧 Queried database ({msg.tool_calls.length} {msg.tool_calls.length === 1 ? 'query' : 'queries'})
+                    </summary>
+                    {msg.tool_calls.map((tc, i) => (
+                      <div key={i} className="border-t border-gray-200 p-3">
+                        <div className="text-xs text-gray-500 mb-1">{tc.args.explanation}</div>
+                        <code className="text-xs bg-gray-900 text-gray-100 p-2 rounded block overflow-x-auto">
+                          {tc.args.sql}
+                        </code>
+                        {tc.results && (
+                          <div className="mt-2 text-xs text-gray-500">
+                            → {tc.results.length} {tc.results.length === 1 ? 'result' : 'results'}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </details>
+                )}
+
+                {/* Main message content */}
                 <div className={`p-4 rounded-2xl ${msg.role === 'user' ? 'bg-gray-100 text-gray-900 rounded-tr-none' : 'bg-red-50 text-gray-900 rounded-tl-none'}`}>
-                  <p>{msg.content}</p>
+                  {msg.role === 'user' ? (
+                    <p>{msg.content}</p>
+                  ) : (
+                    <ReactMarkdown className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-code:text-gray-900">
+                      {msg.content}
+                    </ReactMarkdown>
+                  )}
                 </div>
 
                 {msg.error && (
@@ -250,7 +302,7 @@ export default function QueryPage() {
               <div className="max-w-[80%] space-y-2">
                 {/* Streaming Reasoning */}
                 {streamingReasoning && (
-                  <details open={showStreamingReasoning} className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                  <details open className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
                     <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 flex items-center gap-2">
                       <ChevronDown size={14} className="transition-transform" />
                       Reasoning ({streamingReasoning.length} chars)
@@ -261,18 +313,49 @@ export default function QueryPage() {
                   </details>
                 )}
 
-                {/* Streaming SQL */}
-                {streamingSQL && (
-                  <div className="bg-gray-800 text-gray-200 p-3 rounded-lg">
-                    <div className="text-xs text-gray-400 mb-2">Generating SQL...</div>
-                    <code className="text-xs font-mono">
-                      {streamingSQL}<span className="animate-pulse">▊</span>
-                    </code>
+                {/* Streaming Tool Calls */}
+                {currentToolCalls.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="text-xs text-blue-600 font-medium mb-2">🔍 Querying database...</div>
+                    {currentToolCalls.map((tc, i) => (
+                      <div key={i} className="mb-2 last:mb-0">
+                        <div className="text-xs text-gray-600 mb-1">{tc.explanation}</div>
+                        <code className="text-xs bg-gray-800 text-gray-100 p-2 rounded block overflow-x-auto">
+                          {tc.sql}
+                        </code>
+                        {tc.status === 'executing' && (
+                          <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Executing...
+                          </div>
+                        )}
+                        {tc.status === 'complete' && tc.results && (
+                          <div className="text-xs text-green-600 mt-1">
+                            ✓ {tc.results.length} {tc.results.length === 1 ? 'result' : 'results'}
+                          </div>
+                        )}
+                        {tc.status === 'failed' && (
+                          <div className="text-xs text-red-600 mt-1">
+                            ✗ {tc.error || 'Query failed'}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Streaming Response */}
+                {streamingResponse && (
+                  <div className="bg-red-50 p-4 rounded-2xl rounded-tl-none">
+                    <ReactMarkdown className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-code:text-gray-900">
+                      {streamingResponse}
+                    </ReactMarkdown>
+                    <span className="animate-pulse">▊</span>
                   </div>
                 )}
 
                 {/* Loading indicator when no tokens yet */}
-                {!streamingReasoning && !streamingSQL && (
+                {!streamingReasoning && !streamingResponse && currentToolCalls.length === 0 && (
                   <div className="bg-red-50 p-4 rounded-2xl rounded-tl-none">
                     <Loader2 className="w-5 h-5 animate-spin text-[#FF3008]" />
                   </div>
