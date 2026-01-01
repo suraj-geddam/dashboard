@@ -32,6 +32,31 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// Tool definition for query_database
+const tools = [
+  {
+    type: 'function' as const,
+    function: {
+      name: 'query_database',
+      description: 'Execute a read-only SQL query on the user\'s DoorDash order database to retrieve information about their orders, restaurants, items, and spending patterns.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sql: {
+            type: 'string',
+            description: 'A valid SQLite SELECT, WITH, or EXPLAIN query. Must be read-only (no INSERT/UPDATE/DELETE).'
+          },
+          explanation: {
+            type: 'string',
+            description: 'Brief explanation of what this query does and why it\'s needed to answer the user\'s question.'
+          }
+        },
+        required: ['sql', 'explanation']
+      }
+    }
+  }
+];
+
 async function handleQuery(query: string, history: ConversationMessage[]) {
   const encoder = new TextEncoder();
 
@@ -100,25 +125,40 @@ A: SELECT DISTINCT oi.item_name FROM order_items oi JOIN orders o ON oi.order_id
         const currentMonth = now.getMonth() + 1; // 0-indexed
         const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
 
-        // Build system message with schema and rules
-        const systemMessage = `You are a SQLite expert. Given the following database schema, write a SQL query to answer the user's question.
+        // Build system message with tool calling instructions
+        const systemMessage = `You are a DoorDash order analytics assistant. You help users understand their ordering patterns and provide recommendations.
 
 Current date: ${currentDate} (Year: ${currentYear}, Month: ${currentMonth})
 
+DATABASE SCHEMA:
 ${schema}
 
 ${fewShotExamples}
 
-Rules:
-1. Return ONLY the SQL query. No markdown, no explanation.
-2. Use SQLite syntax and functions (strftime for dates, etc.)
-3. When the question mentions cuisine types (Thai, Italian, Chinese, etc.), use store_metadata.cuisine_type
-4. When the question mentions dish categories (Appetizer, Entree, etc.), use order_items.category
-5. JOIN with store_metadata when filtering by cuisine, price, or store category
-6. For relative time references (last year, last month, this year, etc.), use the current date provided above
-7. Use conversation history to understand context and follow-up questions
-8. Keep your reasoning brief and focused - just identify the key elements and write the query
-9. If the question cannot be answered, return "SELECT 'Cannot answer' as error"`;
+INSTRUCTIONS:
+
+You have access to a query_database tool that lets you query the user's order history.
+
+When to use query_database:
+- User asks about their spending, orders, favorite restaurants, etc.
+- You need specific data to answer accurately
+- Questions like "How much...", "What's my favorite...", "How many times..."
+
+When NOT to use query_database:
+- General knowledge questions ("What are popular Thai dishes?")
+- Recommendations that don't require their specific data
+- Questions you can answer from previous query results in the conversation
+
+After getting query results:
+- Provide a natural language answer
+- Explain the findings clearly
+- Add recommendations or insights when relevant
+
+Remember:
+- Always respond in natural language - users see your text, not the SQL
+- Use conversation history - don't re-query for data you already have
+- Combine data with your knowledge for helpful recommendations
+- Keep responses concise and friendly`;
 
         // Build messages array with conversation history
         const messages: any[] = [
@@ -142,10 +182,11 @@ Rules:
         console.log(`[Query] Using model: ${model}`);
         console.log(`[Query] Conversation history: ${history.length} previous messages`);
 
-        // Generate SQL with streaming
+        // Generate response with tool calling support
         const completion = await openai.chat.completions.create({
           model,
           messages,
+          tools,  // Include tool definitions
           temperature: 0,
           max_tokens: 5000,  // Increased for reasoning models that may have long chain-of-thought
           stream: true,  // Enable token streaming
@@ -196,19 +237,22 @@ Rules:
 
         console.log(`[Query] Cleaned SQL: ${sql}`);
 
-        // Better SQL validation
+        // Better SQL validation - allow read-only queries (SELECT, WITH, etc.)
         const isValidSQL = (s: string): boolean => {
           const cleaned = s.trim().toLowerCase();
 
-          if (!cleaned.startsWith('select')) {
+          // Reject empty or obviously invalid responses
+          if (!cleaned || cleaned.length < 6) {
             return false;
           }
 
           // Check for common non-SQL responses
           const invalidPatterns = [
             /^select\s*$/,  // Just "SELECT" with nothing else
+            /^with\s*$/,    // Just "WITH" with nothing else
             /here is/i,
             /the query/i,
+            /cannot answer/i,
           ];
 
           for (const pattern of invalidPatterns) {
@@ -217,7 +261,38 @@ Rules:
             }
           }
 
-          return true;
+          // Reject write operations - only allow read queries
+          const writeOperations = [
+            /^\s*insert\s+/i,
+            /^\s*update\s+/i,
+            /^\s*delete\s+/i,
+            /^\s*drop\s+/i,
+            /^\s*create\s+/i,
+            /^\s*alter\s+/i,
+            /^\s*truncate\s+/i,
+            /^\s*replace\s+/i,
+          ];
+
+          for (const pattern of writeOperations) {
+            if (pattern.test(s)) {
+              return false;
+            }
+          }
+
+          // Must start with a valid read operation
+          const validStarts = [
+            /^\s*select\s+/i,
+            /^\s*with\s+/i,
+            /^\s*explain\s+/i,  // Allow EXPLAIN for query analysis
+          ];
+
+          for (const pattern of validStarts) {
+            if (pattern.test(s)) {
+              return true;
+            }
+          }
+
+          return false;
         };
 
         // Execute SQL
@@ -236,7 +311,7 @@ Rules:
           console.error('[Query] Invalid SQL generated:', sql);
           send({
             type: 'error',
-            message: 'Generated query was not a valid SELECT statement',
+            message: 'Generated query was not a valid read-only SQL statement (must be SELECT, WITH, or EXPLAIN)',
             sql,
             reasoning: fullReasoning
           });
