@@ -162,3 +162,36 @@ Run migration if upgrading existing database:
 ```bash
 node scripts/add-store-metadata-table.js
 ```
+
+## Planning and Commit Strategy
+
+### Semantic Commits
+
+**CRITICAL RULE**: Every implementation plan (unless it's a really small change) must include commits at reasonable semantic boundaries, instead of committing only once at the end.
+
+**Guidelines:**
+- Break down implementation into logical phases with clear boundaries
+- Commit after completing each major component or feature subset
+- Each commit should represent a working, testable increment
+- Commit messages should follow conventional commits format (feat:, fix:, refactor:, docs:)
+
+**Example** (from agentic query system implementation):
+1. Commit 1: "feat(query): add tool calling infrastructure with query_database tool"
+   - After defining tools and updating system prompt
+2. Commit 2: "feat(query): implement tool call execution and continuation"
+   - After adding tool execution logic and multi-turn conversation
+3. Commit 3: "feat(query): add UI for tool call display and markdown rendering"
+   - After updating UI components
+4. Commit 4: "docs: update examples for agentic query system"
+   - After updating documentation
+
+**What counts as "really small change":**
+- Single-file edits with <20 lines changed
+- Typo fixes, comment updates, minor refactoring
+- Quick bug fixes with isolated scope
+
+**Benefits:**
+- Easier to review and understand changes
+- Can revert specific features without losing all progress
+- Better git history for debugging
+- Clear progression of implementation
