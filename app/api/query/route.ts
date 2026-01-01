@@ -193,126 +193,198 @@ Remember:
         });
 
         let fullReasoning = '';
-        let fullSQL = '';
-        let hasStartedReasoning = false;
-        let hasStartedSQL = false;
+        let fullResponse = '';
+        let toolCalls: any[] = [];
+        let currentToolCall: any = null;
 
         // Process streaming tokens
         for await (const chunk of completion) {
           const delta = chunk.choices[0]?.delta;
+          const finishReason = chunk.choices[0]?.finish_reason;
 
           // Handle reasoning tokens (Qwen chain-of-thought)
           if (delta?.reasoning_content) {
-            if (!hasStartedReasoning) {
-              send({ type: 'reasoning_start' });
-              hasStartedReasoning = true;
-            }
             fullReasoning += delta.reasoning_content;
             send({ type: 'reasoning_token', token: delta.reasoning_content });
           }
 
-          // Handle content (SQL) tokens
-          if (delta?.content) {
-            if (!hasStartedSQL) {
-              if (hasStartedReasoning) {
-                send({ type: 'reasoning_complete', reasoning: fullReasoning });
+          // Handle tool calls
+          if (delta?.tool_calls) {
+            for (const toolCallDelta of delta.tool_calls) {
+              const index = toolCallDelta.index;
+
+              if (!currentToolCall || currentToolCall.index !== index) {
+                currentToolCall = {
+                  index,
+                  id: toolCallDelta.id || '',
+                  type: 'function',
+                  function: {
+                    name: toolCallDelta.function?.name || '',
+                    arguments: ''
+                  }
+                };
+                toolCalls[index] = currentToolCall;
+
+                if (toolCallDelta.function?.name) {
+                  send({ type: 'tool_call_start', name: toolCallDelta.function.name });
+                }
               }
-              send({ type: 'sql_start' });
-              hasStartedSQL = true;
+
+              if (toolCallDelta.function?.arguments) {
+                currentToolCall.function.arguments += toolCallDelta.function.arguments;
+              }
             }
-            fullSQL += delta.content;
-            send({ type: 'sql_token', token: delta.content });
+          }
+
+          // Handle regular content (text response)
+          if (delta?.content) {
+            fullResponse += delta.content;
+            send({ type: 'content_token', token: delta.content });
+          }
+
+          // Check if done
+          if (finishReason === 'tool_calls') {
+            send({ type: 'tool_calls_complete' });
+            break;
+          } else if (finishReason === 'stop') {
+            send({ type: 'response_complete' });
+            break;
           }
         }
 
-        console.log(`[Query] Streaming complete. Reasoning: ${fullReasoning.length} chars, SQL: ${fullSQL.length} chars`);
+        console.log(`[Query] Streaming complete. Tool calls: ${toolCalls.length}, Response: ${fullResponse.length} chars`);
 
-        // Mark SQL generation as complete
-        if (hasStartedSQL) {
-          send({ type: 'sql_complete' });
-        }
-
-        // Clean and validate SQL
-        let sql = fullSQL.trim().replace(/```sql/g, '').replace(/```/g, '').trim();
-
-        console.log(`[Query] Cleaned SQL: ${sql}`);
-
-        // Better SQL validation - allow read-only queries (SELECT, WITH, etc.)
+        // SQL validation function
         const isValidSQL = (s: string): boolean => {
           const cleaned = s.trim().toLowerCase();
 
-          // Reject empty or obviously invalid responses
-          if (!cleaned || cleaned.length < 6) {
-            return false;
-          }
+          if (!cleaned || cleaned.length < 6) return false;
 
-          // Check for common non-SQL responses
-          const invalidPatterns = [
-            /^select\s*$/,  // Just "SELECT" with nothing else
-            /^with\s*$/,    // Just "WITH" with nothing else
-            /here is/i,
-            /the query/i,
-            /cannot answer/i,
-          ];
-
-          for (const pattern of invalidPatterns) {
-            if (pattern.test(s)) {
-              return false;
-            }
-          }
-
-          // Reject write operations - only allow read queries
+          // Check for write operations
           const writeOperations = [
-            /^\s*insert\s+/i,
-            /^\s*update\s+/i,
-            /^\s*delete\s+/i,
-            /^\s*drop\s+/i,
-            /^\s*create\s+/i,
-            /^\s*alter\s+/i,
-            /^\s*truncate\s+/i,
-            /^\s*replace\s+/i,
+            /^\s*insert\s+/i, /^\s*update\s+/i, /^\s*delete\s+/i,
+            /^\s*drop\s+/i, /^\s*create\s+/i, /^\s*alter\s+/i,
+            /^\s*truncate\s+/i, /^\s*replace\s+/i,
           ];
 
           for (const pattern of writeOperations) {
-            if (pattern.test(s)) {
-              return false;
-            }
+            if (pattern.test(s)) return false;
           }
 
-          // Must start with a valid read operation
-          const validStarts = [
-            /^\s*select\s+/i,
-            /^\s*with\s+/i,
-            /^\s*explain\s+/i,  // Allow EXPLAIN for query analysis
-          ];
-
-          for (const pattern of validStarts) {
-            if (pattern.test(s)) {
-              return true;
-            }
-          }
-
-          return false;
+          // Must start with valid read operation
+          const validStarts = [/^\s*select\s+/i, /^\s*with\s+/i, /^\s*explain\s+/i];
+          return validStarts.some(pattern => pattern.test(s));
         };
 
-        // Execute SQL
-        if (isValidSQL(sql)) {
-          send({ type: 'validating', status: 'Validating SQL...' });
-          send({ type: 'executing', status: 'Executing query...' });
+        // If model called tools, execute them and continue
+        if (toolCalls.length > 0) {
+          console.log(`[Query] Model called ${toolCalls.length} tool(s)`);
 
-          try {
-            const results = db.prepare(sql).all();
-            send({ type: 'results', results, count: results.length, sql, reasoning: fullReasoning });
-          } catch (dbError: any) {
-            console.error('[Query] SQL execution error:', dbError);
-            send({ type: 'error', message: `Failed to execute SQL: ${dbError.message}`, sql, reasoning: fullReasoning });
+          const toolResults = [];
+
+          for (const toolCall of toolCalls) {
+            if (toolCall.function.name === 'query_database') {
+              try {
+                const args = JSON.parse(toolCall.function.arguments);
+                const sql = args.sql.trim();
+
+                console.log(`[Query] Executing SQL from tool call: ${sql}`);
+                send({ type: 'executing_sql', sql, explanation: args.explanation });
+
+                if (isValidSQL(sql)) {
+                  const results = db.prepare(sql).all();
+
+                  toolResults.push({
+                    tool_call_id: toolCall.id,
+                    role: 'tool' as const,
+                    name: 'query_database',
+                    content: JSON.stringify({
+                      success: true,
+                      results,
+                      count: results.length
+                    })
+                  });
+
+                  send({ type: 'sql_results', results, count: results.length });
+                } else {
+                  toolResults.push({
+                    tool_call_id: toolCall.id,
+                    role: 'tool' as const,
+                    name: 'query_database',
+                    content: JSON.stringify({
+                      success: false,
+                      error: 'Invalid SQL query - must be read-only SELECT, WITH, or EXPLAIN'
+                    })
+                  });
+
+                  send({ type: 'sql_error', message: 'Invalid SQL query' });
+                }
+              } catch (err: any) {
+                console.error('[Query] Tool execution error:', err);
+                toolResults.push({
+                  tool_call_id: toolCall.id,
+                  role: 'tool' as const,
+                  name: 'query_database',
+                  content: JSON.stringify({
+                    success: false,
+                    error: err.message
+                  })
+                });
+
+                send({ type: 'sql_error', message: err.message });
+              }
+            }
           }
-        } else {
-          console.error('[Query] Invalid SQL generated:', sql);
+
+          // Continue conversation with tool results
+          console.log('[Query] Continuing conversation with tool results');
+          send({ type: 'generating_response' });
+
+          const continuationMessages = [
+            ...messages,
+            {
+              role: 'assistant' as const,
+              content: fullResponse || null,
+              tool_calls: toolCalls
+            },
+            ...toolResults
+          ];
+
+          const finalCompletion = await openai.chat.completions.create({
+            model,
+            messages: continuationMessages,
+            temperature: 0,
+            max_tokens: 3000,
+            stream: true,
+          });
+
+          let finalResponse = '';
+
+          for await (const chunk of finalCompletion) {
+            const delta = chunk.choices[0]?.delta;
+
+            if (delta?.content) {
+              finalResponse += delta.content;
+              send({ type: 'content_token', token: delta.content });
+            }
+          }
+
+          // Send final response
           send({
-            type: 'error',
-            message: 'Generated query was not a valid read-only SQL statement (must be SELECT, WITH, or EXPLAIN)',
-            sql,
+            type: 'final_response',
+            content: finalResponse,
+            reasoning: fullReasoning,
+            tool_calls: toolCalls.map(tc => ({
+              name: tc.function.name,
+              args: JSON.parse(tc.function.arguments)
+            }))
+          });
+
+        } else {
+          // No tool calls - model answered directly
+          send({
+            type: 'final_response',
+            content: fullResponse,
             reasoning: fullReasoning
           });
         }
