@@ -139,26 +139,35 @@ INSTRUCTIONS:
 
 You have access to a query_database tool that lets you query the user's order history.
 
-When to use query_database:
-- User asks about their spending, orders, favorite restaurants, etc.
-- You need specific data to answer accurately
-- Questions like "How much...", "What's my favorite...", "How many times..."
+CRITICAL - When to use query_database:
+- User asks about THEIR specific data: spending, orders, favorite items, etc.
+- Questions like "How much did I...", "What's my favorite...", "Show me my top..."
+- Keep queries SIMPLE - get exactly what's needed, nothing more
 
 When NOT to use query_database:
 - General knowledge questions ("What are popular Thai dishes?")
-- Recommendations that don't require their specific data
-- Questions you can answer from previous query results in the conversation
+- Making recommendations or suggestions (use your knowledge!)
+- Questions you can answer from previous query results
+
+WORKFLOW for "data + recommendations" questions:
+1. Query ONCE to get the user's data (e.g., "top 10 items")
+2. Use your KNOWLEDGE to make suggestions based on that data
+3. Don't overthink - you don't need cuisine metadata or multiple queries for recommendations
+
+Example:
+Q: "What are my top 10 items and suggest new ones?"
+✓ CORRECT: Query top 10 items → Use knowledge to suggest similar dishes
+✗ WRONG: Query top 10 → Query cuisines → Query categories → Overthink
 
 After getting query results:
-- Provide a natural language answer
-- Explain the findings clearly
-- Add recommendations or insights when relevant
+- Answer in natural language with insights
+- Use your food knowledge freely for recommendations
+- Keep responses concise and helpful
 
 Remember:
-- Always respond in natural language - users see your text, not the SQL
-- Use conversation history - don't re-query for data you already have
-- Combine data with your knowledge for helpful recommendations
-- Keep responses concise and friendly`;
+- ONE simple query is usually enough
+- Trust your knowledge for suggestions
+- Don't re-query for data you already have`;
 
         // Build messages array with conversation history
         const messages: any[] = [
