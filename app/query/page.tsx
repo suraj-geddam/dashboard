@@ -203,6 +203,19 @@ export default function QueryPage() {
                 {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
               <div className={`max-w-[80%] space-y-2`}>
+                {/* Reasoning (shown first) */}
+                {msg.reasoning && (
+                  <details className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                    <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 flex items-center gap-2">
+                      <ChevronDown size={14} className="transition-transform" />
+                      Show reasoning ({msg.reasoning.length} chars)
+                    </summary>
+                    <pre className="px-4 py-3 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200 overflow-x-auto max-h-60">
+                      {msg.reasoning}
+                    </pre>
+                  </details>
+                )}
+
                 {/* Tool calls display (for assistant messages) */}
                 {msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0 && (
                   <details className="bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -241,18 +254,6 @@ export default function QueryPage() {
                   <div className="bg-red-100 text-red-700 p-3 rounded-lg text-sm">
                     Error: {msg.error}
                   </div>
-                )}
-
-                {msg.reasoning && (
-                  <details className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
-                    <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 flex items-center gap-2">
-                      <ChevronDown size={14} className="transition-transform" />
-                      Show reasoning ({msg.reasoning.length} chars)
-                    </summary>
-                    <pre className="px-4 py-3 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200 overflow-x-auto max-h-60">
-                      {msg.reasoning}
-                    </pre>
-                  </details>
                 )}
 
                 {msg.sql && (
