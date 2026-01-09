@@ -196,13 +196,13 @@ Remember:
           { role: 'system', content: systemMessage }
         ];
 
-        // Add conversation history (only user questions and SQL responses, not the full assistant messages)
+        // Add conversation history (user questions and assistant responses)
         for (const msg of history) {
           if (msg.role === 'user') {
             messages.push({ role: 'user', content: msg.content });
-          } else if (msg.role === 'assistant' && msg.sql) {
-            // Include the SQL that was generated as the assistant's response
-            messages.push({ role: 'assistant', content: msg.sql });
+          } else if (msg.role === 'assistant' && msg.content) {
+            // Include the full assistant response for context
+            messages.push({ role: 'assistant', content: msg.content });
           }
         }
 
