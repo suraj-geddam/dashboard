@@ -9,9 +9,29 @@ const COLORS = ['#FF3008', '#FF6B4A', '#FF9E89', '#FFC5B8', '#FFE0D9'];
 export default function Dashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
+  const [selectedYear, setSelectedYear] = useState<string>('');
 
+  // Fetch available years on mount
   useEffect(() => {
-    fetch('/api/dashboard')
+    fetch('/api/dashboard/years')
+      .then(res => res.json())
+      .then(years => {
+        setAvailableYears(years);
+        // Set most recent year as default
+        if (years.length > 0) {
+          setSelectedYear(years[0]);
+        }
+      })
+      .catch(err => console.error('Failed to fetch years:', err));
+  }, []);
+
+  // Fetch dashboard data when year changes
+  useEffect(() => {
+    if (!selectedYear) return;
+
+    setLoading(true);
+    fetch(`/api/dashboard?year=${selectedYear}`)
       .then(res => res.json())
       .then(data => {
         setData(data);
@@ -21,9 +41,9 @@ export default function Dashboard() {
         console.error(err);
         setLoading(false);
       });
-  }, []);
+  }, [selectedYear]);
 
-  if (loading) {
+  if (loading || !selectedYear) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#FF3008]" />
@@ -33,12 +53,62 @@ export default function Dashboard() {
 
   if (!data) return <div>Error loading data</div>;
 
+  // Check if selected year has no data
+  if (data.totalOrders === 0 && data.totalSpend === 0) {
+    return (
+      <div className="space-y-8">
+        {/* Year Tabs */}
+        <div className="border-b border-gray-200">
+          <nav className="flex gap-4 -mb-px">
+            {availableYears.map(year => (
+              <button
+                key={year}
+                onClick={() => setSelectedYear(year)}
+                className={`px-6 py-3 font-semibold border-b-2 transition-colors ${
+                  selectedYear === year
+                    ? 'text-[#FF3008] border-[#FF3008]'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {year}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="flex h-[50vh] items-center justify-center">
+          <div className="text-center">
+            <p className="text-gray-500 text-lg">No orders found for {selectedYear}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
-      {/* Header */}
+      {/* Year Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-4 -mb-px">
+          {availableYears.map(year => (
+            <button
+              key={year}
+              onClick={() => setSelectedYear(year)}
+              className={`px-6 py-3 font-semibold border-b-2 transition-colors ${
+                selectedYear === year
+                  ? 'text-[#FF3008] border-[#FF3008]'
+                  : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {year}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Subtitle */}
       <div>
-        <h2 className="text-3xl font-bold text-gray-900">Overview</h2>
-        <p className="text-gray-500 mt-1">Your spending habits at a glance.</p>
+        <p className="text-gray-500">Your spending habits in {selectedYear}.</p>
       </div>
 
       {/* KPI Cards */}
@@ -90,7 +160,7 @@ export default function Dashboard() {
                   dataKey="month"
                   tickFormatter={(value) => {
                     const date = new Date(value + '-01');
-                    return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                    return date.toLocaleDateString('en-US', { month: 'short' });
                   }}
                   axisLine={false}
                   tickLine={false}
