@@ -81,7 +81,7 @@ export default function SettingsPage() {
             value={config.llm_base_url}
             onChange={(e) => setConfig({ ...config, llm_base_url: e.target.value })}
             placeholder={config.llm_provider === 'local' ? 'http://localhost:8080/v1' : 'https://openrouter.ai/api/v1'}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF3008] focus:border-transparent outline-none"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF3008] focus:border-transparent outline-none text-gray-900"
           />
           <p className="text-xs text-gray-500 mt-1">
             {config.llm_provider === 'local' ? 'URL of your local llama-server (e.g., http://localhost:8080/v1)' : 'OpenRouter API URL'}
@@ -95,7 +95,7 @@ export default function SettingsPage() {
             value={config.llm_api_key}
             onChange={(e) => setConfig({ ...config, llm_api_key: e.target.value })}
             placeholder={config.llm_provider === 'local' ? 'Not required for local' : 'sk-or-v1-...'}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF3008] focus:border-transparent outline-none"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF3008] focus:border-transparent outline-none text-gray-900"
           />
         </div>
 
@@ -106,7 +106,7 @@ export default function SettingsPage() {
             value={config.llm_model}
             onChange={(e) => setConfig({ ...config, llm_model: e.target.value })}
             placeholder={config.llm_provider === 'local' ? 'llama-3.2-3b-instruct' : 'meta-llama/llama-3.2-3b-instruct'}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF3008] focus:border-transparent outline-none"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF3008] focus:border-transparent outline-none text-gray-900"
           />
         </div>
 
