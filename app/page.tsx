@@ -53,6 +53,24 @@ export default function Dashboard() {
 
   if (!data) return <div>Error loading data</div>;
 
+  // Helper function to render YoY badge
+  const renderYoYBadge = (change: number | null) => {
+    if (change === null || change === undefined) return null;
+
+    const isPositive = change >= 0;
+    const formattedChange = Math.abs(change).toFixed(1);
+
+    return (
+      <span className={`text-sm font-medium px-2 py-1 rounded ${
+        isPositive
+          ? 'text-green-600 bg-green-50'
+          : 'text-red-600 bg-red-50'
+      }`}>
+        {isPositive ? '+' : '-'}{formattedChange}%
+      </span>
+    );
+  };
+
   // Check if selected year has no data
   if (data.totalOrders === 0 && data.totalSpend === 0) {
     return (
@@ -118,7 +136,7 @@ export default function Dashboard() {
             <div className="bg-red-50 p-3 rounded-lg">
               <DollarSign className="w-6 h-6 text-[#FF3008]" />
             </div>
-            <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+2.5%</span>
+            {renderYoYBadge(data.yoyChanges?.totalSpend)}
           </div>
           <h3 className="text-gray-500 text-sm font-medium">Total Spend</h3>
           <p className="text-2xl font-bold text-gray-900">${data.totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
@@ -129,6 +147,7 @@ export default function Dashboard() {
             <div className="bg-blue-50 p-3 rounded-lg">
               <ShoppingBag className="w-6 h-6 text-blue-600" />
             </div>
+            {renderYoYBadge(data.yoyChanges?.totalOrders)}
           </div>
           <h3 className="text-gray-500 text-sm font-medium">Total Orders</h3>
           <p className="text-2xl font-bold text-gray-900">{data.totalOrders}</p>
@@ -139,6 +158,7 @@ export default function Dashboard() {
             <div className="bg-purple-50 p-3 rounded-lg">
               <TrendingUp className="w-6 h-6 text-purple-600" />
             </div>
+            {renderYoYBadge(data.yoyChanges?.avgOrderValue)}
           </div>
           <h3 className="text-gray-500 text-sm font-medium">Avg. Order Value</h3>
           <p className="text-2xl font-bold text-gray-900">

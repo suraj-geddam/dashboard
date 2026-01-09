@@ -58,12 +58,48 @@ export async function GET(req: NextRequest) {
       LIMIT 5
     `).all();
 
+    // Calculate year-over-year changes (if year is specified)
+    let yoyChanges = null;
+    if (year) {
+      const previousYear = (parseInt(year) - 1).toString();
+      const previousYearFilter = `WHERE strftime('%Y', created_at) = '${previousYear}'`;
+
+      // Previous year total spend
+      const prevTotalSpend = db.prepare(`
+        SELECT SUM(total_amount) as total
+        FROM orders
+        ${previousYearFilter}
+      `).get() as { total: number };
+
+      // Previous year total orders
+      const prevTotalOrders = db.prepare(`
+        SELECT COUNT(*) as count
+        FROM orders
+        ${previousYearFilter}
+      `).get() as { count: number };
+
+      const currentSpend = totalSpend.total || 0;
+      const prevSpend = prevTotalSpend.total || 0;
+      const currentOrders = totalOrders.count || 0;
+      const prevOrders = prevTotalOrders.count || 0;
+      const currentAvgOrderValue = currentOrders > 0 ? currentSpend / currentOrders : 0;
+      const prevAvgOrderValue = prevOrders > 0 ? prevSpend / prevOrders : 0;
+
+      // Calculate percentage changes
+      yoyChanges = {
+        totalSpend: prevSpend > 0 ? ((currentSpend - prevSpend) / prevSpend) * 100 : null,
+        totalOrders: prevOrders > 0 ? ((currentOrders - prevOrders) / prevOrders) * 100 : null,
+        avgOrderValue: prevAvgOrderValue > 0 ? ((currentAvgOrderValue - prevAvgOrderValue) / prevAvgOrderValue) * 100 : null,
+      };
+    }
+
     return NextResponse.json({
       totalSpend: totalSpend.total || 0,
       totalOrders: totalOrders.count || 0,
       topStores,
       monthlySpend,
-      categoryDist
+      categoryDist,
+      yoyChanges,
     });
   } catch (error) {
     console.error('Dashboard API Error:', error);
