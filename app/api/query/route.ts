@@ -208,6 +208,7 @@ Remember:
           temperature: 0,
           max_tokens: 10000,  // Increased for reasoning models that may have long chain-of-thought
           stream: true,  // Enable token streaming
+          parallel_tool_calls: true
         });
 
         let fullReasoning = '';
