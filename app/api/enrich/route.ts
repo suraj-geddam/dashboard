@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
-import OpenAI from 'openai';
+import { getOpenAIClient, getModel } from '@/lib/openai';
 
 const { buildEnrichmentPrompt, parseEnrichmentResponse } = require('@/lib/enrichment-utils');
 
@@ -22,24 +22,11 @@ export async function GET(req: NextRequest) {
       };
 
       try {
-        // 1. Get config
-        const configRows = db.prepare('SELECT key, value FROM config').all() as { key: string, value: string }[];
-        const config = configRows.reduce((acc, curr) => {
-          acc[curr.key] = curr.value;
-          return acc;
-        }, {} as Record<string, string>);
+        // 1. Get config and OpenAI client
+        const openai = getOpenAIClient();
+        const model = getModel();
 
-        const openai = new OpenAI({
-          baseURL: config.llm_base_url || 'http://localhost:8080/v1',
-          apiKey: config.llm_api_key || 'sk-no-key-required',
-        });
-        const model = config.llm_model || 'llama-3.2-3b-instruct';
-
-        console.log(`[Enrich] Starting enrichment with config:`, {
-          baseURL: config.llm_base_url,
-          model: model,
-          apiKey: config.llm_api_key?.substring(0, 10) + '...'
-        });
+        console.log(`[Enrich] Starting enrichment with model:`, model);
 
         // 2. Find stores needing enrichment
         const unenrichedStores = db.prepare(`

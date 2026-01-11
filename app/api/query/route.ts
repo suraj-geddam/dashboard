@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
-import OpenAI from 'openai';
+import { getOpenAIClient, getModel } from '@/lib/openai';
 
 interface ConversationMessage {
   role: 'user' | 'assistant';
@@ -67,18 +67,9 @@ async function handleQuery(query: string, history: ConversationMessage[]) {
       };
 
       try {
-        // Fetch config
-        const configRows = db.prepare('SELECT key, value FROM config').all() as { key: string, value: string }[];
-        const config = configRows.reduce((acc, curr) => {
-          acc[curr.key] = curr.value;
-          return acc;
-        }, {} as Record<string, string>);
-
-        const openai = new OpenAI({
-          baseURL: config.llm_base_url || 'http://localhost:8080/v1',
-          apiKey: config.llm_api_key || 'sk-no-key-required',
-        });
-        const model = config.llm_model || 'llama-3.2-3b-instruct';
+        // Get OpenAI client and model
+        const openai = getOpenAIClient();
+        const model = getModel();
 
         // Build prompt (using same schema and examples as POST)
         const schema = `
