@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { getOpenAIClient, getModel } from '@/lib/openai';
 import { buildSystemPrompt } from '@/lib/query-prompts';
+import { QUERY_TOOLS, executeToolCall } from '@/lib/query-tools';
 
 interface ConversationMessage {
   role: 'user' | 'assistant';
@@ -33,30 +34,8 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Tool definition for query_database
-const tools = [
-  {
-    type: 'function' as const,
-    function: {
-      name: 'query_database',
-      description: 'Execute a read-only SQL query on the user\'s DoorDash order database to retrieve information about their orders, restaurants, items, and spending patterns.',
-      parameters: {
-        type: 'object',
-        properties: {
-          sql: {
-            type: 'string',
-            description: 'A valid SQLite SELECT, WITH, or EXPLAIN query. Must be read-only (no INSERT/UPDATE/DELETE).'
-          },
-          explanation: {
-            type: 'string',
-            description: 'Brief explanation of what this query does and why it\'s needed to answer the user\'s question.'
-          }
-        },
-        required: ['sql', 'explanation']
-      }
-    }
-  }
-];
+// Use tool definitions from query-tools module
+const tools = QUERY_TOOLS;
 
 async function handleQuery(query: string, history: ConversationMessage[]) {
   const encoder = new TextEncoder();
@@ -180,28 +159,6 @@ async function handleQuery(query: string, history: ConversationMessage[]) {
 
         console.log(`[Query] Streaming complete. Tool calls: ${toolCalls.length}, Response: ${fullResponse.length} chars`);
 
-        // SQL validation function
-        const isValidSQL = (s: string): boolean => {
-          const cleaned = s.trim().toLowerCase();
-
-          if (!cleaned || cleaned.length < 6) return false;
-
-          // Check for write operations
-          const writeOperations = [
-            /^\s*insert\s+/i, /^\s*update\s+/i, /^\s*delete\s+/i,
-            /^\s*drop\s+/i, /^\s*create\s+/i, /^\s*alter\s+/i,
-            /^\s*truncate\s+/i, /^\s*replace\s+/i,
-          ];
-
-          for (const pattern of writeOperations) {
-            if (pattern.test(s)) return false;
-          }
-
-          // Must start with valid read operation
-          const validStarts = [/^\s*select\s+/i, /^\s*with\s+/i, /^\s*explain\s+/i];
-          return validStarts.some(pattern => pattern.test(s));
-        };
-
         // If model called tools, execute them and continue
         if (toolCalls.length > 0) {
           console.log(`[Query] Model called ${toolCalls.length} tool(s)`);
@@ -209,57 +166,18 @@ async function handleQuery(query: string, history: ConversationMessage[]) {
           const toolResults = [];
 
           for (const toolCall of toolCalls) {
-            if (toolCall.function.name === 'query_database') {
-              try {
-                const args = JSON.parse(toolCall.function.arguments);
-                const sql = args.sql.trim();
-
-                console.log(`[Query] Executing SQL from tool call: ${sql}`);
-                send({ type: 'executing_sql', sql, explanation: args.explanation });
-
-                if (isValidSQL(sql)) {
-                  const results = db.prepare(sql).all();
-
-                  toolResults.push({
-                    tool_call_id: toolCall.id,
-                    role: 'tool' as const,
-                    name: 'query_database',
-                    content: JSON.stringify({
-                      success: true,
-                      results,
-                      count: results.length
-                    })
-                  });
-
-                  send({ type: 'sql_results', results, count: results.length });
-                } else {
-                  toolResults.push({
-                    tool_call_id: toolCall.id,
-                    role: 'tool' as const,
-                    name: 'query_database',
-                    content: JSON.stringify({
-                      success: false,
-                      error: 'Invalid SQL query - must be read-only SELECT, WITH, or EXPLAIN'
-                    })
-                  });
-
-                  send({ type: 'sql_error', message: 'Invalid SQL query' });
-                }
-              } catch (err: any) {
-                console.error('[Query] Tool execution error:', err);
-                toolResults.push({
-                  tool_call_id: toolCall.id,
-                  role: 'tool' as const,
-                  name: 'query_database',
-                  content: JSON.stringify({
-                    success: false,
-                    error: err.message
-                  })
-                });
-
-                send({ type: 'sql_error', message: err.message });
+            const result = executeToolCall(toolCall, {
+              onExecute: (sql, explanation) => {
+                send({ type: 'executing_sql', sql, explanation });
+              },
+              onSuccess: (results, count) => {
+                send({ type: 'sql_results', results, count });
+              },
+              onError: (message) => {
+                send({ type: 'sql_error', message });
               }
-            }
+            });
+            toolResults.push(result);
           }
 
           // Continue conversation with tool results
