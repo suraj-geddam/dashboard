@@ -139,19 +139,6 @@ INSTRUCTIONS:
 
 You have access to a query_database tool that lets you query the user's order history.
 
-CRITICAL - Tool Calling Format:
-- Use native function calling (tool_calls field) for ALL queries
-- When making MULTIPLE queries, call the function MULTIPLE times
-- Each call should use index 0, 1, 2, etc.
-- DO NOT use XML tags like <tool_call> or </tool_call>
-- DO NOT write tool calls as text content
-- The system handles tool invocation automatically
-
-Example - Making 2 tool calls:
-[Call query_database with index=0 for first query]
-[Call query_database with index=1 for second query]
-NOT: <tool_call>...</tool_call>
-
 CRITICAL - When to use query_database:
 - User asks about THEIR specific data: spending, orders, favorite items, etc.
 - Questions like "How much did I...", "What's my favorite...", "Show me my top..."
@@ -219,14 +206,13 @@ Remember:
           messages,
           tools,  // Include tool definitions
           temperature: 0,
-          max_tokens: 5000,  // Increased for reasoning models that may have long chain-of-thought
+          max_tokens: 10000,  // Increased for reasoning models that may have long chain-of-thought
           stream: true,  // Enable token streaming
         });
 
         let fullReasoning = '';
         let fullResponse = '';
         let toolCalls: any[] = [];
-        let currentToolCall: any = null;
 
         // Process streaming tokens
         for await (const chunk of completion) {
@@ -246,8 +232,9 @@ Remember:
             for (const toolCallDelta of delta.tool_calls) {
               const index = toolCallDelta.index;
 
-              if (!currentToolCall || currentToolCall.index !== index) {
-                currentToolCall = {
+              if (!toolCalls[index]) {
+                // Initialize new tool call at this index
+                toolCalls[index] = {
                   index,
                   id: toolCallDelta.id || '',
                   type: 'function',
@@ -256,15 +243,17 @@ Remember:
                     arguments: ''
                   }
                 };
-                toolCalls[index] = currentToolCall;
 
                 if (toolCallDelta.function?.name) {
                   send({ type: 'tool_call_start', name: toolCallDelta.function.name });
                 }
+              } else if (toolCallDelta.id) {
+                // Update ID if provided in a later delta
+                toolCalls[index].id = toolCallDelta.id;
               }
 
               if (toolCallDelta.function?.arguments) {
-                currentToolCall.function.arguments += toolCallDelta.function.arguments;
+                toolCalls[index].function.arguments += toolCallDelta.function.arguments;
               }
             }
           }
