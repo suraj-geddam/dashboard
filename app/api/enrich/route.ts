@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { getOpenAIClient, getModel } from '@/lib/openai';
-
-const { buildEnrichmentPrompt, parseEnrichmentResponse } = require('@/lib/enrichment-utils');
+import { buildEnrichmentPrompt, parseEnrichmentResponse } from '@/lib/enrichment-utils';
 
 export async function GET(req: NextRequest) {
   const encoder = new TextEncoder();

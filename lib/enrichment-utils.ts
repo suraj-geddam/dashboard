@@ -2,12 +2,20 @@
  * Enrichment utility functions for store metadata classification
  */
 
+export interface StoreMetadata {
+  store_name: string;
+  cuisine_type: string | null;
+  store_category: string;
+  price_range: string;
+  _fallback?: boolean;
+}
+
 /**
  * Build enrichment prompt for batch store classification
- * @param {string[]} storeNames - Array of store names to classify
- * @returns {string} Formatted prompt for LLM
+ * @param storeNames - Array of store names to classify
+ * @returns Formatted prompt for LLM
  */
-function buildEnrichmentPrompt(storeNames) {
+export function buildEnrichmentPrompt(storeNames: string[]): string {
   return `/no_think You are a store classification expert. Given a list of store names, classify each with:
 1. cuisine_type: The primary cuisine (e.g., "Thai", "Italian", "Chinese", "Indian", "Mexican", "American", "Japanese", "Other"). Use null for non-restaurants.
 2. store_category: One of: "Restaurant", "Grocery", "Pharmacy", "Convenience Store", "Coffee Shop", "Fast Food", "Other"
@@ -39,11 +47,11 @@ Return the JSON array now:`;
 
 /**
  * Parse LLM enrichment response with fallback handling
- * @param {string} responseText - Raw LLM response text
- * @param {string[]} storeNames - Original store names for fallback
- * @returns {Array} Parsed and validated enrichment results
+ * @param responseText - Raw LLM response text
+ * @param storeNames - Original store names for fallback
+ * @returns Parsed and validated enrichment results
  */
-function parseEnrichmentResponse(responseText, storeNames) {
+export function parseEnrichmentResponse(responseText: string, storeNames: string[]): StoreMetadata[] {
   try {
     // Strip markdown artifacts
     let cleaned = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -57,7 +65,7 @@ function parseEnrichmentResponse(responseText, storeNames) {
     }
 
     // Filter valid entries (must have required fields)
-    return parsed.filter(item =>
+    return parsed.filter((item: any) =>
       item.store_name &&
       item.store_category &&
       item.price_range
@@ -75,5 +83,3 @@ function parseEnrichmentResponse(responseText, storeNames) {
     }));
   }
 }
-
-module.exports = { buildEnrichmentPrompt, parseEnrichmentResponse };

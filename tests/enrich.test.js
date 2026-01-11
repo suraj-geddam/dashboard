@@ -1,4 +1,4 @@
-const { buildEnrichmentPrompt, parseEnrichmentResponse } = require('../lib/enrichment-utils');
+import { buildEnrichmentPrompt, parseEnrichmentResponse } from '../lib/enrichment-utils.ts';
 
 describe('Enrichment Utils', () => {
   test('buildEnrichmentPrompt formats store names correctly', () => {
