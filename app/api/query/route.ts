@@ -78,10 +78,6 @@ async function handleQuery(query: string, history: ConversationMessage[]) {
         // Add current query
         messages.push({ role: 'user', content: query });
 
-        console.log(`[Query] Starting streaming query for: "${query}"`);
-        console.log(`[Query] Using model: ${model}`);
-        console.log(`[Query] Conversation history: ${history.length} previous messages`);
-
         // Generate response with tool calling support
         const completion = await openai.chat.completions.create({
           model,
@@ -157,12 +153,8 @@ async function handleQuery(query: string, history: ConversationMessage[]) {
           }
         }
 
-        console.log(`[Query] Streaming complete. Tool calls: ${toolCalls.length}, Response: ${fullResponse.length} chars`);
-
         // If model called tools, execute them and continue
         if (toolCalls.length > 0) {
-          console.log(`[Query] Model called ${toolCalls.length} tool(s)`);
-
           const toolResults = [];
 
           for (const toolCall of toolCalls) {
@@ -181,7 +173,6 @@ async function handleQuery(query: string, history: ConversationMessage[]) {
           }
 
           // Continue conversation with tool results
-          console.log('[Query] Continuing conversation with tool results');
           send({ type: 'generating_response' });
 
           const continuationMessages = [
@@ -218,10 +209,18 @@ async function handleQuery(query: string, history: ConversationMessage[]) {
             type: 'final_response',
             content: finalResponse,
             reasoning: fullReasoning,
-            tool_calls: toolCalls.map(tc => ({
-              name: tc.function.name,
-              args: JSON.parse(tc.function.arguments)
-            }))
+            tool_calls: toolCalls.map(tc => {
+              let args;
+              try {
+                args = JSON.parse(tc.function.arguments);
+              } catch {
+                args = { sql: '', explanation: 'Failed to parse arguments' };
+              }
+              return {
+                name: tc.function.name,
+                args
+              };
+            })
           });
 
         } else {
