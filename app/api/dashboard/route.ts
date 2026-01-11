@@ -11,22 +11,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid year parameter' }, { status: 400 });
     }
 
-    // Build year filter
-    const yearFilter = year ? `WHERE strftime('%Y', created_at) = '${year}'` : '';
+    // Build year filter clause (parameterized)
+    const yearFilter = year ? `WHERE strftime('%Y', created_at) = ?` : '';
+    const yearParams = year ? [year] : [];
 
     // Total Spend
     const totalSpend = db.prepare(`
       SELECT SUM(total_amount) as total
       FROM orders
       ${yearFilter}
-    `).get() as { total: number };
+    `).get(...yearParams) as { total: number };
 
     // Total Orders
     const totalOrders = db.prepare(`
       SELECT COUNT(*) as count
       FROM orders
       ${yearFilter}
-    `).get() as { count: number };
+    `).get(...yearParams) as { count: number };
 
     // Top Stores (by spend)
     const topStores = db.prepare(`
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
       GROUP BY store_name
       ORDER BY total DESC
       LIMIT 5
-    `).all();
+    `).all(...yearParams);
 
     // Monthly Spend
     const monthlySpend = db.prepare(`
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
       ${yearFilter}
       GROUP BY month
       ORDER BY month ASC
-    `).all();
+    `).all(...yearParams);
 
     // Category Distribution (from order_items)
     const categoryDist = db.prepare(`
@@ -56,27 +57,26 @@ export async function GET(req: NextRequest) {
       GROUP BY oi.category
       ORDER BY total DESC
       LIMIT 5
-    `).all();
+    `).all(...yearParams);
 
     // Calculate year-over-year changes (if year is specified)
     let yoyChanges = null;
     if (year) {
       const previousYear = (parseInt(year) - 1).toString();
-      const previousYearFilter = `WHERE strftime('%Y', created_at) = '${previousYear}'`;
 
       // Previous year total spend
       const prevTotalSpend = db.prepare(`
         SELECT SUM(total_amount) as total
         FROM orders
-        ${previousYearFilter}
-      `).get() as { total: number };
+        WHERE strftime('%Y', created_at) = ?
+      `).get(previousYear) as { total: number };
 
       // Previous year total orders
       const prevTotalOrders = db.prepare(`
         SELECT COUNT(*) as count
         FROM orders
-        ${previousYearFilter}
-      `).get() as { count: number };
+        WHERE strftime('%Y', created_at) = ?
+      `).get(previousYear) as { count: number };
 
       const currentSpend = totalSpend.total || 0;
       const prevSpend = prevTotalSpend.total || 0;
