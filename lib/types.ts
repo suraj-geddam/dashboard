@@ -81,19 +81,36 @@ export interface DashboardStats {
 
 // ===== Query System Types =====
 
+export interface ToolCall {
+  name: string;
+  args: {
+    sql: string;
+    explanation: string;
+  };
+  results?: Record<string, unknown>[];
+}
+
 export interface QueryMessage {
   role: 'user' | 'assistant';
   content: string;
   reasoning?: string;
-  tool_calls?: Array<{
-    name: string;
-    args: any;
-    results?: any[];
-  }>;
+  tool_calls?: ToolCall[];
   error?: string;
   // Legacy fields for backward compatibility
   sql?: string;
-  data?: any[];
+  data?: Record<string, unknown>[];
+}
+
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  reasoning?: string;
+  tool_calls?: ToolCall[];
+  error?: string;
+  // Legacy fields for backward compatibility
+  sql?: string;
+  data?: Record<string, unknown>[];
 }
 
 export interface QueryStreamEvent {
@@ -104,15 +121,12 @@ export interface QueryStreamEvent {
   name?: string;
   sql?: string;
   explanation?: string;
-  results?: any[];
+  results?: Record<string, unknown>[];
   count?: number;
   message?: string;
   content?: string;
   reasoning?: string;
-  tool_calls?: Array<{
-    name: string;
-    args: any;
-  }>;
+  tool_calls?: ToolCall[];
   error?: string;
 }
 
