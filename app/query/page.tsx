@@ -3,27 +3,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, Loader2, ChevronDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import ChatMessage from './components/ChatMessage';
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  reasoning?: string;
-  tool_calls?: Array<{
-    name: string;
-    args: any;
-    results?: any[];
-  }>;
-  error?: string;
-  // Legacy fields for backward compatibility
-  sql?: string;
-  data?: any[];
-}
+import { Message } from '@/lib/types';
 
 export default function QueryPage() {
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Hello! Ask me anything about your DoorDash orders. For example: "How much did I spend on Thai food last month?"' }
+    { id: crypto.randomUUID(), role: 'assistant', content: 'Hello! Ask me anything about your DoorDash orders. For example: "How much did I spend on Thai food last month?"' }
   ]);
   const [loading, setLoading] = useState(false);
   const [streamingReasoning, setStreamingReasoning] = useState('');
@@ -42,7 +29,7 @@ export default function QueryPage() {
 
     const userMsg = query;
     setQuery('');
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', content: userMsg }]);
     setLoading(true);
     setStreamingReasoning('');
     setStreamingResponse('');
@@ -101,7 +88,7 @@ export default function QueryPage() {
                   break;
 
                 case 'tool_call_start':
-                  console.log(`Tool call: ${data.name}`);
+                  // Tool call started
                   break;
 
                 case 'executing_sql':
@@ -138,6 +125,7 @@ export default function QueryPage() {
 
                 case 'final_response':
                   setMessages(prev => [...prev, {
+                    id: crypto.randomUUID(),
                     role: 'assistant',
                     content: data.content,
                     reasoning: data.reasoning,
@@ -151,6 +139,7 @@ export default function QueryPage() {
 
                 case 'error':
                   setMessages(prev => [...prev, {
+                    id: crypto.randomUUID(),
                     role: 'assistant',
                     content: 'I encountered an error processing your request.',
                     error: data.message
@@ -170,6 +159,7 @@ export default function QueryPage() {
     } catch (error) {
       console.error('Query error:', error);
       setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
         role: 'assistant',
         content: 'Sorry, connection to server lost.',
         error: String(error)
@@ -198,8 +188,8 @@ export default function QueryPage() {
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
         {/* Chat Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6" ref={scrollRef}>
-          {messages.map((msg, idx) => (
-            <ChatMessage key={idx} message={msg} />
+          {messages.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
           ))}
           {loading && (
             <div className="flex gap-4">
@@ -253,9 +243,9 @@ export default function QueryPage() {
 
                 {/* Streaming Response */}
                 {streamingResponse && (
-                  <div className="bg-red-50 p-4 rounded-2xl rounded-tl-none">
+                  <div className="bg-red-50 p-4 rounded-2xl rounded-tl-none text-gray-900">
                     <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-code:text-gray-900">
-                      <ReactMarkdown>{streamingResponse}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingResponse}</ReactMarkdown>
                     </div>
                     <span className="animate-pulse">▊</span>
                   </div>
@@ -281,11 +271,13 @@ export default function QueryPage() {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask a question about your data..."
+              aria-label="Ask a question about your data"
               className="flex-1 border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#FF3008] focus:border-transparent text-gray-900"
             />
             <button
               onClick={handleSend}
               disabled={!query.trim() || loading}
+              aria-label="Send message"
               className="bg-[#FF3008] text-white p-3 rounded-xl hover:bg-[#E02906] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Send size={20} />
