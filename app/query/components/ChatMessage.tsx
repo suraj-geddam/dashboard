@@ -1,20 +1,7 @@
 import { User, Bot, ChevronDown, Code } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  reasoning?: string;
-  tool_calls?: Array<{
-    name: string;
-    args: any;
-    results?: any[];
-  }>;
-  error?: string;
-  // Legacy fields for backward compatibility
-  sql?: string;
-  data?: any[];
-}
+import remarkGfm from 'remark-gfm';
+import { Message } from '@/lib/types';
 
 interface ChatMessageProps {
   message: Message;
@@ -34,7 +21,7 @@ export default function ChatMessage({ message: msg }: ChatMessageProps) {
               <ChevronDown size={14} className="transition-transform" />
               Show reasoning ({msg.reasoning.length} chars)
             </summary>
-            <pre className="px-4 py-3 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200 overflow-x-auto max-h-60">
+            <pre className="px-4 py-3 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200 overflow-x-auto overflow-y-auto max-h-60">
               {msg.reasoning}
             </pre>
           </details>
@@ -69,7 +56,7 @@ export default function ChatMessage({ message: msg }: ChatMessageProps) {
             <p>{msg.content}</p>
           ) : (
             <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-code:text-gray-900">
-              <ReactMarkdown>{msg.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -101,9 +88,9 @@ export default function ChatMessage({ message: msg }: ChatMessageProps) {
                 <tbody className="divide-y divide-gray-100">
                   {msg.data.map((row, i) => (
                     <tr key={i} className="hover:bg-gray-50">
-                      {Object.values(row).map((val: any, j) => (
+                      {Object.values(row).map((val: unknown, j) => (
                         <td key={j} className="px-4 py-2 whitespace-nowrap text-gray-600">
-                          {typeof val === 'number' && !Number.isInteger(val) ? val.toFixed(2) : val}
+                          {val == null ? '—' : (typeof val === 'number' && !Number.isInteger(val) ? val.toFixed(2) : String(val))}
                         </td>
                       ))}
                     </tr>
