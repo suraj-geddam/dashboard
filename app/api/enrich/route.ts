@@ -59,9 +59,8 @@ export async function GET(req: NextRequest) {
             // Call LLM
             const prompt = buildEnrichmentPrompt(storeNames);
             console.log(`[Enrich] Calling LLM for batch ${Math.floor(i / BATCH_SIZE) + 1}, ${storeNames.length} stores`);
-            console.log(`[Enrich] Model: ${model}, Base URL: ${config.llm_base_url}`);
+            console.log(`[Enrich] Model: ${model}`);
             console.log(`[Enrich] Prompt length: ${prompt.length} chars`);
-            console.log(`[Enrich] First 200 chars of prompt:`, prompt.substring(0, 200));
 
             const completion = await openai.chat.completions.create({
               model,

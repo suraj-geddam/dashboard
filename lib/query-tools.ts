@@ -37,16 +37,13 @@ export function isValidSQL(s: string): boolean {
 
   if (!cleaned || cleaned.length < 6) return false;
 
-  // Check for write operations
-  const writeOperations = [
-    /^\s*insert\s+/i, /^\s*update\s+/i, /^\s*delete\s+/i,
-    /^\s*drop\s+/i, /^\s*create\s+/i, /^\s*alter\s+/i,
-    /^\s*truncate\s+/i, /^\s*replace\s+/i,
-  ];
+  // Reject queries with semicolons (prevents chaining multiple statements)
+  if (s.includes(';')) return false;
 
-  for (const pattern of writeOperations) {
-    if (pattern.test(s)) return false;
-  }
+  // Check for write keywords ANYWHERE in the query (not just at the start)
+  // This prevents CTE-based injections like: WITH x AS (DELETE FROM orders) SELECT * FROM x
+  const writeKeywords = /\b(insert|update|delete|drop|create|alter|truncate|replace|pragma)\b/i;
+  if (writeKeywords.test(s)) return false;
 
   // Must start with valid read operation
   const validStarts = [/^\s*select\s+/i, /^\s*with\s+/i, /^\s*explain\s+/i];
