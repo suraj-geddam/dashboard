@@ -5,12 +5,18 @@ import db from '@/lib/db';
  * Fetches LLM configuration from the database
  */
 export function getConfig(): Record<string, string> {
-  const configRows = db.prepare('SELECT key, value FROM config').all() as { key: string, value: string }[];
-  const config = configRows.reduce((acc, curr) => {
-    acc[curr.key] = curr.value;
-    return acc;
-  }, {} as Record<string, string>);
-  return config;
+  try {
+    const configRows = db.prepare('SELECT key, value FROM config').all() as { key: string, value: string }[];
+    const config = configRows.reduce((acc, curr) => {
+      acc[curr.key] = curr.value;
+      return acc;
+    }, {} as Record<string, string>);
+    return config;
+  } catch (error) {
+    // Config table might not exist yet (first run) - return empty config
+    console.warn('Failed to load config from database, using defaults:', error);
+    return {};
+  }
 }
 
 /**
