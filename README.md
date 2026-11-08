@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DashBoard
 
-## Getting Started
+> **Experimental.** I built this with AI coding tools to see what I could do with them. It's not maintained; it's left up as part of the history of me building stuff with AI.
 
-First, run the development server:
+A local web app for digging through your DoorDash order history. Upload the `consumer_order_details.csv` that DoorDash gives you when you request your data, and you get:
+
+- **A dashboard:** total spend, order count, top stores, monthly spend and a category breakdown, with per-year tabs and year-over-year changes.
+- **Store enrichment:** an LLM classifies each store's cuisine, type (restaurant, grocery, pharmacy…) and price range, so "how much did I spend on Thai food?" actually works.
+- **Questions in plain English:** a chat page where an LLM answers by running read-only SQL against your orders, streaming its tool calls and the answer.
+
+Everything stays on your machine in a SQLite file (`data/dashboard.db`). The LLM can be a local model behind any OpenAI-compatible server (I used Qwen3 8B on llama.cpp) or a hosted one through OpenRouter.
+
+## Running it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+node scripts/init-db.js   # creates data/dashboard.db
+npm run dev               # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. On **Settings**, point it at your LLM: a local llama-server URL (e.g. `http://localhost:8080/v1`) or OpenRouter with an API key, plus a model name.
+2. On **Upload**, add your CSV, then click **Enrich Metadata**. Each upload replaces all existing data.
+3. Look at the dashboard, or ask questions on **Query**.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Unit tests: `npm run test:unit`.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Built with Next.js, SQLite (better-sqlite3), Recharts and the OpenAI SDK. Not affiliated with DoorDash.
