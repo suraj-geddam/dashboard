@@ -1,6 +1,8 @@
 # DashBoard
 
 > **Experimental.** I built this with AI coding tools to see what I could do with them. It's not maintained; it's left up as part of the history of me building stuff with AI.
+>
+> V0 and early work were built in the Antigravity IDE (Dec 2025), then additional work was done with Claude Code (New Year's Eve 2025 onwards).
 
 A local web app for digging through your DoorDash order history. Upload the `consumer_order_details.csv` that DoorDash gives you when you request your data, and you get:
 
